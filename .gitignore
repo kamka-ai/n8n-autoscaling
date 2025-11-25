@@ -1,3 +1,4 @@
 # .gitignore
 .env
 .claude/
+n8n_key.pem
