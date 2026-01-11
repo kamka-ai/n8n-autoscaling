@@ -1,0 +1,212 @@
+version: "3.7"
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_main:
+  n8n_webhook:
+
+
+networks:
+  frappe_docker_default:
+    external: true
+  n8n-internal:
+    driver: bridge
+
+x-n8n: &service-n8n
+  image: ghcr.io/kamka-ai/n8n-custom:latest
+  restart: unless-stopped
+  environment:
+    - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED}
+    - N8N_USER_FOLDER=${N8N_USER_FOLDER}
+    - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+    - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=${N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS}
+    - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+    - N8N_HOST=${N8N_HOST}
+    - N8N_PROTOCOL=${N8N_PROTOCOL}
+    - N8N_WEBHOOK=${N8N_WEBHOOK}
+    - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL}
+    - WEBHOOK_URL=${WEBHOOK_URL}
+    - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+    - N8N_DATA_TABLES_MAX_SIZE_BYTES=${N8N_DATA_TABLES_MAX_SIZE_BYTES}
+    # Queue mode config
+    - EXECUTIONS_MODE=queue
+    - QUEUE_BULL_REDIS_HOST=redis
+    - QUEUE_HEALTH_CHECK_ACTIVE=true
+    - N8N_QUEUE_BULL_GRACEFULSHUTDOWNTIMEOUT=${N8N_QUEUE_BULL_GRACEFULSHUTDOWNTIMEOUT}
+    - N8N_GRACEFUL_SHUTDOWN_TIMEOUT=${N8N_GRACEFUL_SHUTDOWN_TIMEOUT}
+    # DB config
+    - DB_TYPE=${DB_TYPE}
+    - DB_POSTGRESDB_HOST=postgres
+    - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+    - DB_POSTGRESDB_USER=${POSTGRES_USER}
+    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+    # Task Runner config
+    - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS}
+    - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+    - N8N_TASK_BROKER_URL=http://n8n:5679
+    - N8N_COMMAND_RESPONSE_URL=http://n8n:5679
+    - N8N_TASK_BROKER_PORT=5679
+    # Email/SMTP configuration
+    - N8N_EMAIL_MODE=${N8N_EMAIL_MODE:-smtp}
+    - N8N_SMTP_HOST=${N8N_SMTP_HOST}
+    - N8N_SMTP_PORT=${N8N_SMTP_PORT}
+    - N8N_SMTP_USER=${N8N_SMTP_USER}
+    - N8N_SMTP_PASS=${N8N_SMTP_PASS}
+    - N8N_SMTP_SENDER=${N8N_SMTP_SENDER}
+    - N8N_SMTP_SSL=${N8N_SMTP_SSL:-true}
+    - N8N_SMTP_SECURE=${N8N_SMTP_SECURE:-true}
+    - NODE_FUNCTION_ALLOW_EXTERNAL=ajv,ajv-formats,puppeteer,ffmpeg,git,graphicsmagick,openssh-client
+    - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+  networks:
+    - n8n-internal
+    - frappe_docker_default
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+    networks:
+      - n8n-internal
+
+  postgres:
+    image: pgvector/pgvector:postgres-16
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-pgvector.sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - n8n-internal
+
+  n8n:
+    <<: *service-n8n
+    container_name: n8n-main
+    expose:
+      - "5678"
+      - "5679"
+    volumes:
+      - n8n_main:/n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frappe_docker_default"
+      - "traefik.http.routers.n8n-main.rule=Host(`n8n.kamka.cloud`)"
+      - "traefik.http.routers.n8n-main.entrypoints=websecure"
+      - "traefik.http.routers.n8n-main.tls=true"
+      - "traefik.http.routers.n8n-main.tls.certresolver=main-resolver"
+      - "traefik.http.services.n8n-main.loadbalancer.server.port=5678"
+
+  n8n-webhook:
+    <<: *service-n8n
+    container_name: n8n-webhook
+    command: sh /webhook
+    volumes:
+      - n8n_webhook:/n8n
+    depends_on:
+      n8n:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # If the user wants separate endpoint for webhooks, labels go here.
+    # Assuming same domain for now, or internal routing if they use the same Host.
+    # If they use `N8N_WEBHOOK` env var different from `N8N_HOST`, they might need another router.
+    # But usually n8n handles routing internally if everything is on same domain.
+    # If they are different domains, I should add labels here too.
+    # Given the user request only mentioned "n8n.kamka.cloud", I will stick to main.
+    # However, to be safe for scaling, if we want webhook traffic to go here specifically:
+    # We can rely on separate path routing or just load balancing if we add labels.
+    # For now, let's keep it simple as n8n main can handle webhooks too if needed,
+    # but this service is specifically for offloading.
+    # I'll add labels for the webhook domain IF it's different, or generic if they share.
+    # Let's assume potentially shared or specific. I will add a label for the webhook service just in case.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frappe_docker_default"
+      - "traefik.http.routers.n8n-webhook.rule=Host(`${N8N_WEBHOOK}`)"
+      - "traefik.http.routers.n8n-webhook.entrypoints=websecure"
+      - "traefik.http.routers.n8n-webhook.tls=true"
+      - "traefik.http.routers.n8n-webhook.tls.certresolver=main-resolver"
+      - "traefik.http.services.n8n-webhook.loadbalancer.server.port=5678"
+
+  n8n-worker:
+    <<: *service-n8n
+    container_name: n8n-worker
+    stop_grace_period: 5m
+    command: sh /worker
+    volumes:
+      - n8n_main:/n8n
+    depends_on:
+      n8n:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Workers don't need Traefik rules as they process jobs from Redis
+
+  redis-monitor:
+    image: ghcr.io/kamka-ai/n8n-monitor:latest
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - n8n-internal
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QUEUE_NAME_PREFIX=${QUEUE_NAME_PREFIX}
+      - QUEUE_NAME=${QUEUE_NAME}
+      - POLL_INTERVAL_SECONDS=${POLL_INTERVAL_SECONDS}
+
+  n8n-autoscaler:
+    image: ghcr.io/kamka-ai/n8n-autoscaler:latest
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QUEUE_NAME_PREFIX=${QUEUE_NAME_PREFIX}
+      - QUEUE_NAME=${QUEUE_NAME}
+      - N8N_WORKER_SERVICE_NAME=n8n-worker
+      - COMPOSE_PROJECT_NAME=n8n-autoscaling # Must match folder name on server likely or set explicitly
+      - COMPOSE_FILE_PATH=/app/docker-compose.yml # This will be tricky, likely needs to point to this prod file
+      - MIN_REPLICAS=${MIN_REPLICAS}
+      - MAX_REPLICAS=${MAX_REPLICAS}
+      - SCALE_UP_QUEUE_THRESHOLD=${SCALE_UP_QUEUE_THRESHOLD}
+      - SCALE_DOWN_QUEUE_THRESHOLD=${SCALE_DOWN_QUEUE_THRESHOLD}
+      - POLLING_INTERVAL_SECONDS=${POLLING_INTERVAL_SECONDS}
+      - COOLDOWN_PERIOD_SECONDS=${COOLDOWN_PERIOD_SECONDS}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.env:/app/.env
+      - ./docker-compose.prod.yml:/app/docker-compose.yml
+    depends_on:
+      redis:
+        condition: service_healthy
+      n8n-worker:
+        condition: service_started
+    networks:
+      - n8n-internal
