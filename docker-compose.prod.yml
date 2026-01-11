@@ -43,6 +43,7 @@ x-n8n: &service-n8n
     - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
     # Task Runner config
     - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=${OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS}
+    - N8N_RUNNERS_ENABLED=true
     - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
     - N8N_TASK_BROKER_URL=http://n8n:5679
     - N8N_COMMAND_RESPONSE_URL=http://n8n:5679
@@ -63,6 +64,18 @@ x-n8n: &service-n8n
     - frappe_docker_default
 
 services:
+  n8n-task-runners:
+    image: n8nio/n8n-task-runners:latest-python
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_TASK_BROKER_URL=ws://n8n:5678/v1/runners
+    networks:
+      - n8n-internal
+    depends_on:
+      n8n:
+        condition: service_started
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
