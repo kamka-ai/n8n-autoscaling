@@ -65,7 +65,7 @@ x-n8n: &service-n8n
 
 services:
   n8n-task-runners:
-    image: n8nio/n8n-task-runners:latest-python
+    image: ghcr.io/kamka-ai/n8n-runner-custom:latest
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
