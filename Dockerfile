@@ -32,7 +32,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     tzdata \
     jq \
+    python3 \
+    python3-venv \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
+
+# Setup Python Virtual Environment for n8n
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Install Chromium browser
 RUN apt-get update && apt-get install -y chromium && \
