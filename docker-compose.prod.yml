@@ -77,7 +77,7 @@ services:
       - n8n-internal
 
   postgres:
-    image: pgvector/pgvector:postgres-16
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
