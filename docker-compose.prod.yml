@@ -59,6 +59,7 @@ x-n8n: &service-n8n
     - N8N_SMTP_SECURE=${N8N_SMTP_SECURE:-true}
     - NODE_FUNCTION_ALLOW_EXTERNAL=ajv,ajv-formats,puppeteer,ffmpeg,git,graphicsmagick,openssh-client
     - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+    - N8N_PYTHON_VENV_DIR=/opt/venv
   networks:
     - n8n-internal
     - frappe_docker_default
@@ -66,11 +67,12 @@ x-n8n: &service-n8n
 services:
   n8n-task-runners:
     image: ghcr.io/kamka-ai/n8n-custom:latest
-    command: task-runners
+    command: n8n task-runners
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_TASK_BROKER_URL=ws://n8n:5678/v1/runners
+      - N8N_PYTHON_VENV_DIR=/opt/venv
     networks:
       - n8n-internal
     depends_on:
