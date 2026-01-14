@@ -162,7 +162,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=frappe_docker_default"
-      - "traefik.http.routers.n8n-webhook.rule=Host(`${N8N_WEBHOOK}`) && (PathPrefix(`/webhook`) || PathPrefix(`/webhook-test`))"
+      - "traefik.http.routers.n8n-webhook.rule=Host(`${N8N_WEBHOOK}`) && PathPrefix(`/webhook`)"
       - "traefik.http.routers.n8n-webhook.entrypoints=websecure"
       - "traefik.http.routers.n8n-webhook.tls=true"
       - "traefik.http.routers.n8n-webhook.tls.certresolver=main-resolver"
