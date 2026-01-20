@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - N8N_RUNNERS_TASK_BROKER_URI=ws://n8n:5679/v1/runners
+      - N8N_RUNNERS_TASK_BROKER_URI=ws://n8n:5679
       - N8N_PYTHON_VENV_DIR=/opt/venv
     networks:
       - n8n-internal
