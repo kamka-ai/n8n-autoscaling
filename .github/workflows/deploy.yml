@@ -73,11 +73,12 @@ jobs:
           SMTP_USER: ${{ secrets.N8N_SMTP_USER }}
           SMTP_PASS: ${{ secrets.N8N_SMTP_PASS }}
           SMTP_SENDER: ${{ secrets.N8N_SMTP_SENDER }}
+          N8N_RUNNERS_AUTH_TOKEN: ${{ secrets.N8N_RUNNERS_AUTH_TOKEN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: SMTP_USER,SMTP_PASS,SMTP_SENDER
+          envs: SMTP_USER,SMTP_PASS,SMTP_SENDER,N8N_RUNNERS_AUTH_TOKEN
           script: |
             cd /home/${{ secrets.VPS_USER }}/n8n-autoscaling
             
@@ -86,6 +87,7 @@ jobs:
             sed -i "s|SMTP_USER_PLACEHOLDER|$SMTP_USER|g" .env
             sed -i "s|SMTP_PASS_PLACEHOLDER|$SMTP_PASS|g" .env
             sed -i "s|SMTP_SENDER_PLACEHOLDER|$SMTP_SENDER|g" .env
+            sed -i "s|N8N_RUNNERS_AUTH_TOKEN_PLACEHOLDER|$N8N_RUNNERS_AUTH_TOKEN|g" .env
             
             # Create network if it doesn't exist (though it should for traefik)
             # docker network create frappe_docker_default || true
