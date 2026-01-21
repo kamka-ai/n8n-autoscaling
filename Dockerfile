@@ -47,7 +47,7 @@ RUN apt-get update && apt-get install -y chromium && \
     rm -rf /var/lib/apt/lists/*
 
 # Install n8n and Puppeteer
-RUN npm install -g n8n puppeteer @n8n/task-runner ajv ajv-formats
+RUN npm install -g n8n puppeteer @n8n/task-runner@2.4.2 ajv ajv-formats
 # Add npm global bin to PATH to ensure n8n executable is found
 ENV PATH="/usr/local/lib/node_modules/n8n/bin:$PATH"
 
