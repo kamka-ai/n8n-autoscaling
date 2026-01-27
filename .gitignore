@@ -3,3 +3,12 @@
 .claude/
 n8n_key.pem
 nginx/certbot/
+.cursor/mcp.json
+workflow-payload.json
+updated-workflow.json
+updated-workflow-v2.json
+new-workflow.json
+new-workflow-structure.json
+enhanced-linkedin-arxiv-workflow.json
+ARXIV_ENHANCEMENT_GUIDE.md
+.cursor/rules/n8n-mcp.mdc
